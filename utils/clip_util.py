@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 from sklearn.decomposition import PCA
+from utils.vlm_filter import approve_image, DEFAULT_VLM_PROMPT
 
 
 def extract_clip_features(clip, image, encoder):
@@ -60,8 +61,10 @@ def compute_clip_pca(
     params,
     total_samples = 5000,
     num_pca_components = 100,
-    batch_size = 10
-    
+    batch_size = 10,
+    vlm_filter = False,
+    vlm_model = "gemini/gemini-3-flash-preview",
+    vlm_prompt = None,
 ) -> torch.Tensor:
     """
     Extract CLIP features from generated images based on prompts.
@@ -75,11 +78,6 @@ def compute_clip_pca(
         Tensor of CLIP principle components
     """
     
-    
-    # Calculate how many total batches we need
-    num_batches = math.ceil(total_samples / batch_size)
-    # Randomly sample prompts (with replacement if needed)
-    sampled_prompts_clip = random.choices(diverse_prompts, k=num_batches)
     
     clip_features_path = f"{params['savepath_training_images']}/clip_principle_directions.pt"
     
@@ -96,9 +94,12 @@ def compute_clip_pca(
     clip_features = []
     image_paths = []
     prompts_training = []
+    _vlm_prompt = vlm_prompt or DEFAULT_VLM_PROMPT
     print('Calculating Semantic PCA')
-    
-    for prompt in tqdm(sampled_prompts_clip):
+
+    pbar = tqdm(total=total_samples)
+    while img_idx < total_samples:
+        prompt = random.choice(diverse_prompts)
         if 'max_sequence_length' in params:
             images = pipe(prompt, 
                      num_images_per_prompt = batch_size,
@@ -117,27 +118,36 @@ def compute_clip_pca(
                          width = params['width'],
                          ).images
 
-        
+        if vlm_filter:
+            images = [im for im in images if approve_image(im, vlm_model, _vlm_prompt)]
+            if not images:
+                continue
+
         # Process images
         clip_inputs = clip_processor(images=images, return_tensors="pt", padding=True)
         pixel_values = clip_inputs['pixel_values'].to(device)
-        
+
         # Get image embeddings
         with torch.no_grad():
             image_features = clip_model.get_image_features(pixel_values)
-            
+
         # Normalize embeddings
         clip_feats = image_features / image_features.norm(dim=1, keepdim=True)
         clip_features.append(clip_feats)
 
         for im in images:
+            if img_idx >= total_samples:
+                break
             image_path = f"{params['savepath_training_images']}/{img_idx}.png"
             im.save(image_path)
             image_paths.append(image_path)
             prompts_training.append(prompt)
             img_idx += 1
+            pbar.update(1)
 
-    
+    pbar.close()
+
+
     clip_features = torch.cat(clip_features)
 
     

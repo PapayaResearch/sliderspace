@@ -16,6 +16,8 @@
 import inspect
 import os
 import argparse, torch
+from dotenv import load_dotenv
+load_dotenv()
 
 ### MOVING ARGPARSE HERE TO HANDLE FLUX devices
 parser = argparse.ArgumentParser()
@@ -198,6 +200,23 @@ parser.add_argument(
     default='false',
     choices=['true', 'false'],
     help="if you want to store the training images post-training"
+)
+parser.add_argument(
+    "--vlm_filter",
+    action="store_true",
+    help="Enable VLM-based filtering of training images before PCA"
+)
+parser.add_argument(
+    "--vlm_model",
+    type=str,
+    default="gemini/gemini-3-flash-preview",
+    help="LiteLLM model string to use for filtering"
+)
+parser.add_argument(
+    "--vlm_prompt",
+    type=str,
+    default=None,
+    help="Custom approval prompt for the VLM (uses default if not set)"
 )
 args = parser.parse_args()
 
@@ -763,6 +782,9 @@ if __name__ == "__main__":
         total_samples = args.clip_total_samples,
         num_pca_components = 100,
         batch_size = args.clip_batch_size,
+        vlm_filter=args.vlm_filter,
+        vlm_model=args.vlm_model,
+        vlm_prompt=args.vlm_prompt,
     )
     
     # 3. Initialize SliderSpace sliders
