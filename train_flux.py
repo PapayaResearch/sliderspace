@@ -792,6 +792,7 @@ if __name__ == "__main__":
         models['transformer'],
         training_params
     )
+    models['transformer'] = torch.compile(models['transformer'], mode="reduce-overhead")
     lr_scheduler = get_scheduler(
         lr_scheduler,
         optimizer=optimizer,

@@ -129,7 +129,7 @@ class LoRAModule(nn.Module):
             else:
                 nn.init.zeros_(self.lora_up.weight)
         
-        self.multiplier = multiplier
+        self.register_buffer("multiplier", torch.tensor(multiplier, dtype=torch.float32), persistent=False)
         self.org_module = org_module  # remove in applying
 
     def apply_to(self):
@@ -313,8 +313,8 @@ class LoRANetwork(nn.Module):
 
     def __enter__(self):
         for lora in self.unet_loras:
-            lora.multiplier = 1.0 * self.lora_scale
+            lora.multiplier.fill_(float(self.lora_scale))
 
     def __exit__(self, exc_type, exc_value, tb):
         for lora in self.unet_loras:
-            lora.multiplier = 0
+            lora.multiplier.fill_(0.0)
