@@ -129,15 +129,16 @@ def run_pipe(pipe, args, seed, networks, max_sequence_length):
     return pipe(args.prompt, **kwargs).images[0]
 
 
+CELL_SIZE = 256
+
 def make_grid(rows):
     """Grid where each row is a list of images. Rows = interpolation steps, cols = seeds."""
-    w, h = rows[0][0].size
     n_rows = len(rows)
     n_cols = len(rows[0])
-    grid = Image.new("RGB", (w * n_cols, h * n_rows))
+    grid = Image.new("RGB", (CELL_SIZE * n_cols, CELL_SIZE * n_rows))
     for row_idx, row in enumerate(rows):
         for col_idx, img in enumerate(row):
-            grid.paste(img, (col_idx * w, row_idx * h))
+            grid.paste(img.resize((CELL_SIZE, CELL_SIZE), Image.LANCZOS), (col_idx * CELL_SIZE, row_idx * CELL_SIZE))
     return grid
 
 
