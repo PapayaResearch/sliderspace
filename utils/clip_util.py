@@ -124,12 +124,12 @@ def compute_clip_pca(
                 continue
 
         # Process images
-        clip_inputs = clip_processor(images=images, return_tensors="pt", padding=True)
+        clip_inputs = clip_processor(images=images, return_tensors="pt")
         pixel_values = clip_inputs['pixel_values'].to(device)
 
         # Get image embeddings
         with torch.no_grad():
-            image_features = clip_model.get_image_features(pixel_values)
+            image_features = extract_clip_features(clip_model, pixel_values, params['encoder'])
 
         # Normalize embeddings
         clip_feats = image_features / image_features.norm(dim=1, keepdim=True)
