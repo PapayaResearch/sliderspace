@@ -4,6 +4,7 @@ import torch, gc, os
 from transformers import CLIPTextModel, CLIPTokenizer, CLIPTextModelWithProjection, T5TokenizerFast
 from transformers import (
     AutoModel,
+    AutoImageProcessor,
     CLIPModel,
     CLIPProcessor,
 )
@@ -335,13 +336,13 @@ def load_models_xl(params):
     # Load appropriate encoder (CLIP or DinoV2)
     if params['encoder'] == 'dinov2-small':
         clip_model = AutoModel.from_pretrained(
-            'facebook/dinov2-small', 
+            'facebook/dinov2-small',
             torch_dtype=weight_dtype
         )
-        clip_processor= None
+        clip_processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
     else:
         clip_model = CLIPModel.from_pretrained(
-            "wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M", 
+            "wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M",
             torch_dtype=weight_dtype
         )
         clip_processor = CLIPProcessor.from_pretrained("wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M")
@@ -456,13 +457,13 @@ def load_models_flux(params):
     # Load appropriate encoder (CLIP or DinoV2)
     if params['encoder'] == 'dinov2-small':
         clip_model = AutoModel.from_pretrained(
-            'facebook/dinov2-small', 
+            'facebook/dinov2-small',
             torch_dtype=params['weight_dtype']
         )
-        clip_processor= None
+        clip_processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
     else:
         clip_model = CLIPModel.from_pretrained(
-            "wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M", 
+            "wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M",
             torch_dtype=params['weight_dtype']
         )
         clip_processor = CLIPProcessor.from_pretrained("wkcn/TinyCLIP-ViT-40M-32-Text-19M-LAION400M")
