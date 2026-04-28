@@ -90,23 +90,27 @@ class LoRAModule(nn.Module):
         self.lora_name = lora_name
         self.lora_dim = lora_dim
 
-        if "Linear" in org_module.__class__.__name__:
-            in_dim = org_module.in_features
-            out_dim = org_module.out_features
+        base = org_module
+        while hasattr(base, 'org_module'):
+            base = base.org_module
+
+        if "Linear" in base.__class__.__name__:
+            in_dim = base.in_features
+            out_dim = base.out_features
             self.lora_down = nn.Linear(in_dim, lora_dim, bias=False)
             self.lora_up = nn.Linear(lora_dim, out_dim, bias=False)
 
-        elif "Conv" in org_module.__class__.__name__:  # 一応
-            in_dim = org_module.in_channels
-            out_dim = org_module.out_channels
+        elif "Conv" in base.__class__.__name__:  # 一応
+            in_dim = base.in_channels
+            out_dim = base.out_channels
 
             self.lora_dim = min(self.lora_dim, in_dim, out_dim)
             if self.lora_dim != lora_dim:
                 print(f"{lora_name} dim (rank) is changed to: {self.lora_dim}")
 
-            kernel_size = org_module.kernel_size
-            stride = org_module.stride
-            padding = org_module.padding
+            kernel_size = base.kernel_size
+            stride = base.stride
+            padding = base.padding
             self.lora_down = nn.Conv2d(
                 in_dim, self.lora_dim, kernel_size, stride, padding, bias=False
             )
@@ -130,16 +134,11 @@ class LoRAModule(nn.Module):
                 nn.init.zeros_(self.lora_up.weight)
         
         self.register_buffer("multiplier", torch.tensor(multiplier, dtype=torch.float32), persistent=False)
-        self.org_module = org_module  # remove in applying
-
-    def apply_to(self):
-        self.org_forward = self.org_module.forward
-        self.org_module.forward = self.forward
-        del self.org_module
+        object.__setattr__(self, 'org_module', org_module)
 
     def forward(self, x):
         return (
-            self.org_forward(x)
+            self.org_module(x)
             + self.lora_up(self.lora_down(x)) * self.multiplier * self.scale
         )
 
@@ -185,9 +184,7 @@ class LoRANetwork(nn.Module):
             ), f"duplicated lora name: {lora.lora_name}. {lora_names}"
             lora_names.add(lora.lora_name)
 
-        # 適用する
         for lora in self.unet_loras:
-            lora.apply_to()
             self.add_module(
                 lora.lora_name,
                 lora,
@@ -248,9 +245,17 @@ class LoRANetwork(nn.Module):
                 )
             if module.__class__.__name__ in target_replace_modules:
                 for child_name, child_module in module.named_modules():
-                    if child_module.__class__.__name__ in filt_layers:
-                        
-                            
+                    # Skip LoRA-internal paths so we don't rewrap lora_down/lora_up/org_module
+                    if any(part in ("lora_down", "lora_up", "org_module")
+                           for part in child_name.split(".")):
+                        continue
+
+                    # Walk to the underlying non-LoRA module for class-based filtering
+                    base = child_module
+                    while hasattr(base, 'org_module'):
+                        base = base.org_module
+
+                    if base.__class__.__name__ in filt_layers:
                         if train_method == 'xattn-strict':
                             if 'out' in child_name:
                                 continue
@@ -264,16 +269,18 @@ class LoRANetwork(nn.Module):
                                 continue
                         lora_name = prefix + "." + name + "." + child_name
                         lora_name = lora_name.replace(".", "_")
-#                         print(f"{lora_name}")
                         lora = self.module(
                             lora_name, child_module, multiplier, rank, self.alpha, train_method, fast_init
                         )
-#                         print(name, child_name)
-#                         print(child_module.weight.shape)
                         if lora_name not in names:
+                            # Replace the module in-place so the compiled graph includes LoRA
+                            full_path = name + "." + child_name
+                            parent_path, _, attr_name = full_path.rpartition(".")
+                            parent = root_module.get_submodule(parent_path) if parent_path else root_module
+                            setattr(parent, attr_name, lora)
+
                             loras.append(lora)
                             names.append(lora_name)
-        # print(f'@@@@@@@@@@@@@@@@@@@@@@@@@@@@ \n {names}')
         return loras
 
     def prepare_optimizer_params(self):
