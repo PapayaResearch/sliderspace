@@ -3,11 +3,6 @@ from io import BytesIO
 from PIL import Image
 
 
-DEFAULT_VLM_PROMPT = (
-    "Look at this image carefully. Is it a realistic, good quality photograph "
-    "of a person's face with no major artifacts, distortions, or deformities?"
-)
-
 _APPROVAL_TOOL = [{
     "type": "function",
     "function": {
@@ -34,7 +29,7 @@ def image_to_base64(image: Image.Image) -> str:
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-def approve_image(image: Image.Image, model: str, prompt: str = DEFAULT_VLM_PROMPT) -> bool:
+def approve_image(image: Image.Image, model: str, prompt: str) -> bool:
     import litellm, json
     response = litellm.completion(
         model=model,

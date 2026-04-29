@@ -22,7 +22,7 @@ Usage:
         --sliderspace_path trained_sliders/flux/faces \
         --prompt "picture of a human face" \
         --output_dir slider_visualizations/faces \
-        --vlm_filter
+        --vlm_prompt "Look at this image carefully. Is it a realistic, good quality photograph of a person's face with no major artifacts, distortions, or deformities?"
 """
 
 import argparse
@@ -42,7 +42,7 @@ from tqdm.auto import tqdm
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.lora import DEFAULT_TARGET_REPLACE, UNET_TARGET_REPLACE_MODULE_CONV, LoRANetwork
 from utils.inference_util import FluxPipelineSliders, StableDiffusionXLPipelineSliders
-from utils.vlm_filter import approve_image, DEFAULT_VLM_PROMPT
+from utils.vlm_filter import approve_image
 
 from transformers import logging as hf_logging
 from diffusers import logging as diff_logging
@@ -81,12 +81,10 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None,
                         help="Base seed for reproducibility (random if not set)")
     # VLM filter options
-    parser.add_argument("--vlm_filter", action="store_true",
-                        help="Enable VLM-based filtering of baseline images")
     parser.add_argument("--vlm_model", type=str, default="gemini/gemini-3-flash-preview",
                         help="LiteLLM model string to use for filtering")
     parser.add_argument("--vlm_prompt", type=str, default=None,
-                        help="Custom approval prompt for the VLM (uses default if not set)")
+                        help="Approval prompt for the VLM. If not set, no filtering is applied.")
     parser.add_argument("--vlm_workers", type=int, default=4,
                         help="Number of parallel workers for VLM filtering")
     return parser.parse_args()
@@ -142,7 +140,7 @@ def make_grid(rows):
     return grid
 
 
-def get_good_seeds(pipe, args, networks, max_sequence_length, vlm_prompt):
+def get_good_seeds(pipe, args, networks, max_sequence_length):
     """Generate baseline images, optionally filter with VLM, return (seeds, images)."""
     good_seeds = []
     good_images = []
@@ -157,9 +155,9 @@ def get_good_seeds(pipe, args, networks, max_sequence_length, vlm_prompt):
         next_seed += args.num_images
         batch_images = [run_pipe(pipe, args, s, networks, max_sequence_length) for s in batch_seeds]
 
-        if args.vlm_filter:
+        if args.vlm_prompt is not None:
             with ThreadPoolExecutor(max_workers=args.vlm_workers) as ex:
-                approved = list(ex.map(lambda img: approve_image(img, args.vlm_model, vlm_prompt), batch_images))
+                approved = list(ex.map(lambda img: approve_image(img, args.vlm_model, args.vlm_prompt), batch_images))
             batch_seeds = [s for s, ok in zip(batch_seeds, approved) if ok]
             batch_images = [img for img, ok in zip(batch_images, approved) if ok]
             rejected += args.num_images - len(batch_seeds)
@@ -207,11 +205,10 @@ def main():
         sys.exit(1)
     print(f"Found {len(sliders)} sliders")
 
-    vlm_prompt = args.vlm_prompt or DEFAULT_VLM_PROMPT
     scales = np.linspace(0, args.slider_scale, args.num_interpolation_steps)
 
     print("Generating baseline images...")
-    seeds, baseline_images = get_good_seeds(pipe, args, networks, max_sequence_length, vlm_prompt)
+    seeds, baseline_images = get_good_seeds(pipe, args, networks, max_sequence_length)
 
     for slider_path in tqdm(sliders, desc="Sliders"):
         slider_name = os.path.splitext(os.path.basename(slider_path))[0]

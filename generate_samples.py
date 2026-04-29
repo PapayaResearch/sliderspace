@@ -27,7 +27,7 @@ from utils.inference_util import FluxPipelineSliders
 
 from transformers import logging as hf_logging
 from diffusers import logging as diff_logging
-from utils.vlm_filter import approve_image, DEFAULT_VLM_PROMPT
+from utils.vlm_filter import approve_image
 hf_logging.set_verbosity_error()
 diff_logging.set_verbosity_error()
 
@@ -48,12 +48,10 @@ def parse_args():
     parser.add_argument("--guidance_scale", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=None)
     # VLM filter options
-    parser.add_argument("--vlm_filter", action="store_true",
-                        help="Enable VLM-based image quality filtering")
     parser.add_argument("--vlm_model", type=str, default="gemini/gemini-3-flash-preview",
                         help="LiteLLM model string to use for filtering")
     parser.add_argument("--vlm_prompt", type=str, default=None,
-                        help="Custom approval prompt for the VLM (uses default if not set)")
+                        help="Approval prompt for the VLM. If not set, no filtering is applied.")
     parser.add_argument("--vlm_workers", type=int, default=4,
                         help="Number of parallel workers for VLM filtering")
     return parser.parse_args()
@@ -75,7 +73,6 @@ def main():
     pipe = pipe.to(args.device)
     pipe.set_progress_bar_config(disable=True)
 
-    vlm_prompt = args.vlm_prompt or DEFAULT_VLM_PROMPT
     img_idx = 0
     rejected = 0
     pbar = tqdm(total=args.num_samples, desc="Generating")
@@ -90,10 +87,10 @@ def main():
             max_sequence_length=max_sequence_length,
         ).images
 
-        if args.vlm_filter:
+        if args.vlm_prompt is not None:
             n_before = len(images)
             with ThreadPoolExecutor(max_workers=args.vlm_workers) as ex:
-                results = list(ex.map(lambda img: approve_image(img, args.vlm_model, vlm_prompt), images))
+                results = list(ex.map(lambda img: approve_image(img, args.vlm_model, args.vlm_prompt), images))
             images = [img for img, ok in zip(images, results) if ok]
             n_rejected = n_before - len(images)
             if n_rejected:

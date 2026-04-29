@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 from sklearn.decomposition import PCA
-from utils.vlm_filter import approve_image, DEFAULT_VLM_PROMPT
+from utils.vlm_filter import approve_image
 
 
 def extract_clip_features(clip, image, encoder):
@@ -62,7 +62,6 @@ def compute_clip_pca(
     total_samples = 5000,
     num_pca_components = 100,
     batch_size = 10,
-    vlm_filter = False,
     vlm_model = "gemini/gemini-3-flash-preview",
     vlm_prompt = None,
 ) -> torch.Tensor:
@@ -94,7 +93,6 @@ def compute_clip_pca(
     clip_features = []
     image_paths = []
     prompts_training = []
-    _vlm_prompt = vlm_prompt or DEFAULT_VLM_PROMPT
     print('Calculating Semantic PCA')
 
     pbar = tqdm(total=total_samples)
@@ -118,8 +116,8 @@ def compute_clip_pca(
                          width = params['width'],
                          ).images
 
-        if vlm_filter:
-            images = [im for im in images if approve_image(im, vlm_model, _vlm_prompt)]
+        if vlm_prompt is not None:
+            images = [im for im in images if approve_image(im, vlm_model, vlm_prompt)]
             if not images:
                 continue
 
