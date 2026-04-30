@@ -81,6 +81,8 @@ def main():
         prompt = random.choice(args.concept_prompts)
         images = pipe(
             prompt,
+            height=512,
+            width=512,
             num_images_per_prompt=args.batch_size,
             num_inference_steps=args.num_inference_steps,
             guidance_scale=args.guidance_scale,

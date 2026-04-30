@@ -114,6 +114,8 @@ def load_pipeline(args, weight_dtype):
 def run_pipe(pipe, args, seed, networks, max_sequence_length):
     generator = torch.manual_seed(seed)
     kwargs = dict(
+        height=512,
+        width=512,
         num_images_per_prompt=1,
         num_inference_steps=args.num_inference_steps,
         guidance_scale=args.guidance_scale,
