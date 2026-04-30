@@ -69,8 +69,6 @@ def parse_args():
                         help="Number of rows in the grid (scale 0 to slider_scale)")
     parser.add_argument("--slider_scale", type=float, default=1.0,
                         help="Maximum scale to apply the slider at")
-    parser.add_argument("--negative", action="store_true",
-                        help="Sweep slider in the negative direction (0 to -slider_scale)")
     parser.add_argument("--num_inference_steps", type=int, default=None,
                         help="Number of inference steps (defaults to 4 for FLUX, 4 for SDXL-DMD2)")
     parser.add_argument("--guidance_scale", type=float, default=0.0)
@@ -209,8 +207,7 @@ def main():
         sys.exit(1)
     print(f"Found {len(sliders)} sliders")
 
-    max_scale = -args.slider_scale if args.negative else args.slider_scale
-    scales = np.linspace(0, max_scale, args.num_interpolation_steps)
+    scales = np.linspace(0, args.slider_scale, args.num_interpolation_steps)
 
     print("Generating baseline images...")
     seeds, baseline_images = get_good_seeds(pipe, args, networks, max_sequence_length)
